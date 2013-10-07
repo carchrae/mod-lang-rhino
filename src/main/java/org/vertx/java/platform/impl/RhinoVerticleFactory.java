@@ -17,6 +17,7 @@
 package org.vertx.java.platform.impl;
 
 import org.mozilla.javascript.*;
+import org.mozilla.javascript.ContextFactory.Listener;
 import org.mozilla.javascript.commonjs.module.ModuleScript;
 import org.mozilla.javascript.commonjs.module.Require;
 import org.mozilla.javascript.commonjs.module.RequireBuilder;
@@ -33,221 +34,265 @@ import java.io.*;
 import java.net.URI;
 import java.net.URL;
 
-
 /**
  * @author <a href="http://tfox.org">Tim Fox</a>
  */
 public class RhinoVerticleFactory implements VerticleFactory {
 
-  static {
-    ContextFactory.initGlobal(new RhinoContextFactory());
-  }
+	private static RhinoContextFactory factory;
 
-  private ClassLoader cl;
-  private Vertx vertx;
-  private Container container;
+	static {
+		ContextFactory.initGlobal(factory = new RhinoContextFactory());
 
-  private static CoffeeScriptCompiler coffeeScriptCompiler = null;
-  private ScriptableObject scope;
+	}
 
-  public RhinoVerticleFactory() {
-  }
+	private ClassLoader cl;
+	private Vertx vertx;
+	private Container container;
 
-  @Override
-  public void init(Vertx vertx, Container container, ClassLoader cl) {
-    this.cl = cl;
-    this.vertx = vertx;
-    this.container = container;
-  }
+	private static CoffeeScriptCompiler coffeeScriptCompiler = null;
+	private ScriptableObject scope;
 
-  public Verticle createVerticle(String main) throws Exception {
-    return new RhinoVerticle(main);
-  }
+	public RhinoVerticleFactory() {
+	}
 
-  public void reportException(Logger logger, Throwable t) {
+	@Override
+	public void init(Vertx vertx, Container container, ClassLoader cl) {
+		this.cl = cl;
+		this.vertx = vertx;
+		this.container = container;
+	}
 
-    if (t instanceof RhinoException) {
-      RhinoException je = (RhinoException)t;
+	public Verticle createVerticle(String main) throws Exception {
+		return new RhinoVerticle(main);
+	}
 
-      logger.error("Exception in JavaScript verticle:\n"
-                   + je.details() +
-                   "\n" + je.getScriptStackTrace());
-    } else {
-      logger.error("Exception in JavaScript verticle", t);
-    }
-  }
+	public void reportException(Logger logger, Throwable t) {
 
-  public void close() {
-  }
+		if (t instanceof RhinoException) {
+			RhinoException je = (RhinoException) t;
 
-  public static synchronized Object load(Context cx, Scriptable thisObj, Object[] args, Function funObj) throws Exception {
-    ClassLoader cl = Thread.currentThread().getContextClassLoader();
-    Scriptable scope = thisObj;
-    String moduleName = (String)args[0];
-    // We set a global so we can test for it within a Vert.x module to make sure people aren't using load()
-    // to load Vert.x api modules
-    ScriptableObject.putProperty(scope, "__vertxload", "true");
-    loadScript(cl, cx, scope, moduleName);
-    ScriptableObject.deleteProperty(scope, "__vertxload");
-    return null;
-  }
+			logger.error("Exception in JavaScript verticle:\n" + je.details()
+					+ "\n" + je.getScriptStackTrace());
+		} else {
+			logger.error("Exception in JavaScript verticle", t);
+		}
+	}
 
-  private static synchronized CoffeeScriptCompiler getCoffeeScriptCompiler(ClassLoader cl) {
-    // Lazy load coffee script compiler
-    if (RhinoVerticleFactory.coffeeScriptCompiler == null) {
-      RhinoVerticleFactory.coffeeScriptCompiler = new CoffeeScriptCompiler(cl);
-    }
-    return RhinoVerticleFactory.coffeeScriptCompiler;
-  }
+	public void close() {
+	}
 
-  private static final class CoffeeCompilingUrlModuleSourceProvider extends UrlModuleSourceProvider {
-    private final ClassLoader cl;
+	public static synchronized Object load(Context cx, Scriptable thisObj,
+			Object[] args, Function funObj) throws Exception {
+		ClassLoader cl = Thread.currentThread().getContextClassLoader();
+		Scriptable scope = thisObj;
+		String moduleName = (String) args[0];
+		// We set a global so we can test for it within a Vert.x module to make
+		// sure people aren't using load()
+		// to load Vert.x api modules
+		ScriptableObject.putProperty(scope, "__vertxload", "true");
+		loadScript(cl, cx, scope, moduleName);
+		ScriptableObject.deleteProperty(scope, "__vertxload");
+		return null;
+	}
 
-    private CoffeeCompilingUrlModuleSourceProvider(Iterable<URI> privilegedUris, Iterable<URI> fallbackUris, ClassLoader cl) {
-      super(privilegedUris, fallbackUris);
-      this.cl = cl;
-    }
+	private static synchronized CoffeeScriptCompiler getCoffeeScriptCompiler(
+			ClassLoader cl) {
+		// Lazy load coffee script compiler
+		if (RhinoVerticleFactory.coffeeScriptCompiler == null) {
+			RhinoVerticleFactory.coffeeScriptCompiler = new CoffeeScriptCompiler(
+					cl);
+		}
+		return RhinoVerticleFactory.coffeeScriptCompiler;
+	}
 
-    public ModuleSource loadSource(URI uri, URI base, Object validator) throws IOException ,java.net.URISyntaxException {
-      ModuleSource source = super.loadSource(uri, base, validator);
-      if (uri != null && uri.toString().endsWith(".coffee")) {
-        return getCoffeeScriptCompiler(cl).coffeeScriptToJavaScript(source);
-      }
-      return source;
-    }
-  }
+	private static final class CoffeeCompilingUrlModuleSourceProvider extends
+			UrlModuleSourceProvider {
+		private final ClassLoader cl;
 
-  // Support for loading from CommonJS modules
-  private static Require installRequire(final ClassLoader cl, Context cx, ScriptableObject globalScope) {
-    RequireBuilder rb = new RequireBuilder();
-    rb.setSandboxed(false);
+		private CoffeeCompilingUrlModuleSourceProvider(
+				Iterable<URI> privilegedUris, Iterable<URI> fallbackUris,
+				ClassLoader cl) {
+			super(privilegedUris, fallbackUris);
+			this.cl = cl;
+		}
 
-    rb.setModuleScriptProvider(
-        new SoftCachingModuleScriptProvider(new CoffeeCompilingUrlModuleSourceProvider(null, null, cl)) {
+		public ModuleSource loadSource(URI uri, URI base, Object validator)
+				throws IOException, java.net.URISyntaxException {
+			ModuleSource source = super.loadSource(uri, base, validator);
+			if (uri != null && uri.toString().endsWith(".coffee")) {
+				return getCoffeeScriptCompiler(cl).coffeeScriptToJavaScript(
+						source);
+			}
+			return source;
+		}
+	}
 
-          @Override
-          public ModuleScript getModuleScript(Context cx, String moduleId, URI uri, URI base, Scriptable paths) throws Exception {
+	// Support for loading from CommonJS modules
+	private static Require installRequire(final ClassLoader cl, Context cx,
+			ScriptableObject globalScope) {
+		RequireBuilder rb = new RequireBuilder();
+		rb.setSandboxed(false);
 
-            // Check for cached version
-            CachedModuleScript cachedModule = getLoadedModule(moduleId);
-            if (cachedModule != null) {
-              // cachedModule.getModule() is not public
-              // super.getModuleScript uses moduleSourceProvider.loadSource to check for modifications
-              return super.getModuleScript(cx, moduleId, uri, uri, paths);
-            }
+		rb.setModuleScriptProvider(new SoftCachingModuleScriptProvider(
+				new CoffeeCompilingUrlModuleSourceProvider(null, null, cl)) {
 
-            if (uri == null) {
-              URL url;
-              if (!moduleId.endsWith(".js") && !moduleId.endsWith(".coffee")) {
-                url = cl.getResource(moduleId + ".js"); // Try .js first
-                if (url == null) {
-                  url = cl.getResource(moduleId + ".coffee"); // Then try .coffee
-                }
-              } else {
-                url = cl.getResource(moduleId);
-              }
-              if (url != null) {
-                uri = url.toURI();
-              }
-            }
-            return super.getModuleScript(cx, moduleId, uri, uri, paths);
-          }
-        });
+			@Override
+			public ModuleScript getModuleScript(Context cx, String moduleId,
+					URI uri, URI base, Scriptable paths) throws Exception {
 
-    // Force export of vertxStop
-    rb.setPostExec(new Script() {
-      @Override
-      public Object exec(Context context, Scriptable scope) {
-        String js = "if(typeof vertxStop == 'function'){ " +
-            "module.exports.vertxStop = vertxStop;" +
-            "}";
-        return context.evaluateString(scope, js, "postExec", 1, null);
-      }
-    });
+				// Check for cached version
+				CachedModuleScript cachedModule = getLoadedModule(moduleId);
+				if (cachedModule != null) {
+					// cachedModule.getModule() is not public
+					// super.getModuleScript uses
+					// moduleSourceProvider.loadSource to check for
+					// modifications
+					return super.getModuleScript(cx, moduleId, uri, uri, paths);
+				}
 
-    Require require = rb.createRequire(cx, globalScope);
+				if (uri == null) {
+					URL url;
+					if (!moduleId.endsWith(".js")
+							&& !moduleId.endsWith(".coffee")) {
+						url = cl.getResource(moduleId + ".js"); // Try .js first
+						if (url == null) {
+							url = cl.getResource(moduleId + ".coffee"); // Then
+																		// try
+																		// .coffee
+						}
+					} else {
+						url = cl.getResource(moduleId);
+					}
+					if (url != null) {
+						uri = url.toURI();
+					}
+				}
+				return super.getModuleScript(cx, moduleId, uri, uri, paths);
+			}
+		});
 
-    return require;
-  }
+		// Force export of vertxStop
+		rb.setPostExec(new Script() {
+			@Override
+			public Object exec(Context context, Scriptable scope) {
+				String js = "if(typeof vertxStop == 'function'){ "
+						+ "module.exports.vertxStop = vertxStop;" + "}";
+				return context.evaluateString(scope, js, "postExec", 1, null);
+			}
+		});
 
-  static void loadScript(ClassLoader cl, Context cx, Scriptable scope, String scriptName) throws Exception {
-    Reader reader = null;
-    try {
-      if (scriptName != null && scriptName.endsWith(".coffee")) {
-        URL resource = cl.getResource(scriptName);
-        if (resource != null) {
-          reader = new StringReader(getCoffeeScriptCompiler(cl).coffeeScriptToJavaScript(resource.toURI()));
-        } else {
-          throw new FileNotFoundException("Cannot find script: " + scriptName);
-        }
-      } else {
-        InputStream is = cl.getResourceAsStream(scriptName);
-        if (is == null) {
-          throw new FileNotFoundException("Cannot find script: " + scriptName);
-        }
-        reader = new BufferedReader(new InputStreamReader(is));
-      }
-      cx.evaluateReader(scope, reader, scriptName, 1, null);
-    } finally {
-      try {
-        if (reader != null) {
-          reader.close();
-        }
-      } catch (IOException ignore) {
-      }
-    }
-  }
+		Require require = rb.createRequire(cx, globalScope);
 
-  private synchronized ScriptableObject getScope(Context cx) {
-    if (scope == null) {
-      scope = cx.initStandardObjects();
-      scope.defineFunctionProperties(new String[]{"load"}, RhinoVerticleFactory.class, ScriptableObject.DONTENUM);
-      Object jsVertx = Context.javaToJS(vertx, scope);
-      ScriptableObject.putProperty(scope, "__jvertx", jsVertx);
-      Object jsContainer = Context.javaToJS(container, scope);
-      ScriptableObject.putProperty(scope, "__jcontainer", jsContainer);
-    }
-    return scope;
-  }
+		return require;
+	}
 
-  private class RhinoVerticle extends Verticle {
+	static void loadScript(ClassLoader cl, Context cx, Scriptable scope,
+			String scriptName) throws Exception {
+		Reader reader = null;
+		try {
+			if (scriptName != null && scriptName.endsWith(".coffee")) {
+				URL resource = cl.getResource(scriptName);
+				if (resource != null) {
+					reader = new StringReader(getCoffeeScriptCompiler(cl)
+							.coffeeScriptToJavaScript(resource.toURI()));
+				} else {
+					throw new FileNotFoundException("Cannot find script: "
+							+ scriptName);
+				}
+			} else {
+				InputStream is = cl.getResourceAsStream(scriptName);
+				if (is == null) {
+					throw new FileNotFoundException("Cannot find script: "
+							+ scriptName);
+				}
+				reader = new BufferedReader(new InputStreamReader(is));
+			}
+			cx.evaluateReader(scope, reader, scriptName, 1, null);
+		} finally {
+			try {
+				if (reader != null) {
+					reader.close();
+				}
+			} catch (IOException ignore) {
+			}
+		}
+	}
 
-    private final String scriptName;
-    private Function stopFunction;
+	private synchronized ScriptableObject getScope(Context cx) {
+		if (scope == null) {
+			scope = cx.initStandardObjects();
+			scope.defineFunctionProperties(new String[] { "load" },
+					RhinoVerticleFactory.class, ScriptableObject.DONTENUM);
+			Object jsVertx = Context.javaToJS(vertx, scope);
+			ScriptableObject.putProperty(scope, "__jvertx", jsVertx);
+			Object jsContainer = Context.javaToJS(container, scope);
+			ScriptableObject.putProperty(scope, "__jcontainer", jsContainer);
+		}
+		return scope;
+	}
 
-    RhinoVerticle(String scriptName) {
-      this.scriptName = scriptName;
-    }
+	private class RhinoVerticle extends Verticle {
 
-    public void start() {
-      Context cx = Context.enter();
-      cx.setOptimizationLevel(2);
-      try {
-        // This is the global scope used to store JS native objects
-        ScriptableObject globalScope = getScope(cx);
-        Require require = installRequire(cl, cx, globalScope);
-        Scriptable script = require.requireMain(cx, scriptName);
-        try {
-          stopFunction = (Function) script.get("vertxStop", globalScope);
-        } catch (ClassCastException e) {
-          // Get CCE if no such function
-          stopFunction = null;
-        }
-      } finally {
-        Context.exit();
-      }
-    }
+		private final String scriptName;
+		private Function stopFunction;
 
-    public void stop() {
-      if (stopFunction != null) {
-        Context cx = Context.enter();
-        try {
-          stopFunction.call(cx, scope, scope, null);
-        } finally {
-          Context.exit();
-        }
-      }
-    }
-  }
+		RhinoVerticle(String scriptName) {
+			this.scriptName = scriptName;
+		}
+
+		public void start() {
+			int optimizationLevel = 2;
+
+			String rhinoDebugConfig = System.getProperty("rhino.debug");
+			if (rhinoDebugConfig != null)
+				try {
+					System.out.println("Waiting to connect to remote Rhino debugger with settings " + rhinoDebugConfig);
+					System.out.println("For details on how to do this go here: http://wiki.eclipse.org/JSDT/Debug/Rhino/Embedding_Rhino_Debugger#Connecting_to_a_Remote_Rhino_Debugger");
+					Class<?> rhinoDebuggerClazz = Class
+							.forName("org.eclipse.wst.jsdt.debug.rhino.debugger.RhinoDebugger");
+
+					Object debugr = rhinoDebuggerClazz.getConstructor(
+							String.class).newInstance(rhinoDebugConfig);
+					rhinoDebuggerClazz.getDeclaredMethod("start")
+							.invoke(debugr);
+					factory.addListener((Listener) debugr);
+					System.out
+							.println("successfully started rhino debugger with configuration: "
+									+ rhinoDebugConfig);
+					optimizationLevel=-1;
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+
+			Context cx = Context.enter();
+			cx.setOptimizationLevel(optimizationLevel);
+			try {
+				// This is the global scope used to store JS native objects
+				ScriptableObject globalScope = getScope(cx);
+				Require require = installRequire(cl, cx, globalScope);
+				Scriptable script = require.requireMain(cx, scriptName);
+				try {
+					stopFunction = (Function) script.get("vertxStop",
+							globalScope);
+				} catch (ClassCastException e) {
+					// Get CCE if no such function
+					stopFunction = null;
+				}
+			} finally {
+				Context.exit();
+			}
+		}
+
+		public void stop() {
+			if (stopFunction != null) {
+				Context cx = Context.enter();
+				try {
+					stopFunction.call(cx, scope, scope, null);
+				} finally {
+					Context.exit();
+				}
+			}
+		}
+	}
 }
-
