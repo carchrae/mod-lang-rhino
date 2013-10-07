@@ -19,7 +19,7 @@ Instructions:
 * Launch vertx with the System property -Drhino.debug=transport=socket,suspend=y,address=9999
 * Vertx should start and say `Waiting to connect to remote Rhino debugger with settings transport=socket,suspend=y,address=9999`  
 * Start the Remote Javascript debugger, like this: http://wiki.eclipse.org/JSDT/Debug/Rhino/Embedding_Rhino_Debugger#Connecting_to_a_Remote_Rhino_Debugger
-
+* You'll need to add your JS source path to the Javascript Debugger launch config.  Alternatively, throw a `debugger;` line into your code and it'll prompt you for the source.
 
 Limitations:
 
