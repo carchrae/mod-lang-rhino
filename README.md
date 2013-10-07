@@ -15,8 +15,8 @@ It may work with other versions of Eclipse, but you probably need to copy the JS
 Instructions:
 
 * Unpack the module into your project mods directory
-* Add the langs.properties file to your vertx build path (otherwise it will load the default JS module)
-* Launch vertx with the System property -Drhino.debug=transport=socket,suspend=y,address=9999
+* Add the conf/langs.properties file to your vertx conf directory - (otherwise it will load the default JS module)
+* Launch vertx with the System property -Drhino.debug=transport=socket,suspend=y,address=9999 (if you exclude that, it'll run as normal)
 * Vertx should start and say `Waiting to connect to remote Rhino debugger with settings transport=socket,suspend=y,address=9999`  
 * Start the Remote Javascript debugger, like this: http://wiki.eclipse.org/JSDT/Debug/Rhino/Embedding_Rhino_Debugger#Connecting_to_a_Remote_Rhino_Debugger
 
