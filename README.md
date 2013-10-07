@@ -1,6 +1,6 @@
 # Rhino Vert.x - Fork with Eclipse JSDT support
 
-This fork add support so you can debug your Vert.x javascript code in the Eclipse debugger.
+This fork allows you to debug your Vert.x javascript code in the Eclipse debugger.
 
 
 See http://wiki.eclipse.org/JSDT/Debug/Rhino/Embedding_Rhino_Debugger#Connecting_to_a_Remote_Rhino_Debugger 
@@ -15,9 +15,12 @@ It may work with other versions of Eclipse, but you probably need to copy the JS
 Instructions:
 
 * Unpack the module into your project mods directory
-* Add the langs.properties file to your vertx build path (otherwise it will load the default JS module)
+* Add the langs.properties file (example is in conf) to your vertx build path (otherwise it will load the default JS module)
 * Launch vertx with the System property -Drhino.debug=transport=socket,suspend=y,address=9999
 * Vertx should start and say `Waiting to connect to remote Rhino debugger with settings transport=socket,suspend=y,address=9999`  
 * Start the Remote Javascript debugger, like this: http://wiki.eclipse.org/JSDT/Debug/Rhino/Embedding_Rhino_Debugger#Connecting_to_a_Remote_Rhino_Debugger
 
 
+Limitations:
+
+* Does not survive auto-redeploy restarts.  You'll need to stop both Vertx and the Rhino Debugger - I tried, but couldn't figure out how to get it to recycle the debugger. 
