@@ -1,4 +1,4 @@
-# Rhino Vert.x - Fork with Eclipse JSDT support
+# Rhino Vert.x with Eclipse JSDT support
 
 This fork allows you to debug your Vert.x javascript code in the Eclipse debugger.
 
